@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
+import java.util.Iterator;
 
 public class TPCLog {
 
@@ -45,6 +46,7 @@ public class TPCLog {
 
 	// Log entries
 	private ArrayList<KVMessage> entries = null;
+	private ArrayList<KVMessage> reEntry = null;
 	
 	/*  Keeps track of the interrupted 2PC operation.
 	 There can be at most one, i.e., when the last 2PC operation before
@@ -74,6 +76,10 @@ public class TPCLog {
 	
 	public void appendAndFlush(KVMessage entry) {
 		// implement me
+		
+		entries.add(entry);	//append it to the end of the ArrayList entries
+		this.flushToDisk();	//flush the message away using flushToDisk
+
 	}
 
 	/**
@@ -135,6 +141,53 @@ public class TPCLog {
 	 */
 	public void rebuildKeyServer() throws KVException {
 		// implement me
+		try{
+		this.loadFromDisk(); 	//fills entries with KVMessage logs
+		} catch (Exception e){
+			e.printStackTrace();
+		}
+		if(empty()){	//if entries is empty, nothing to rebuild
+			return;
+		}
+		
+		KVMessage next =  null;
+		Iterator<KVMessage> iter = entries.iterator();	//iterate over entries ArrayList to get all KVMessages
+		while(iter.hasNext()){				//send KVMessages to KVServer (rebuild)
+			KVMessage mess = iter.next();
+			if (mess.getMsgType() == "putreq" || mess.getMsgType() == "delreq"){
+				if(!iter.hasNext()){		//if the last message was a put/del, it was interrupted
+					interruptedTpcOperation = mess;		//set interruptedTpcOperation to be last KVMessage
+					return;						
+				}
+				next = iter.next();
+				if (next.getMsgType() == "abort"){	//If aborted, don't add it or mess to reEntry
+					continue;
+				}
+			}
+			reEntry.add(mess);	
+			if(next != null) {
+				reEntry.add(next);
+				next = null;			//make next null again
+			}
+		}
+		
+		//now reEntry should be full of KVMessages to send to KVServer
+		Iterator<KVMessage> reIter = reEntry.iterator();
+		while(reIter.hasNext()){
+			KVMessage reMess = reIter.next();
+			kvServer = new KVServer(100,10);	//initialize kvServer
+			if(reMess.getMsgType() == "getreq"){
+				kvServer.get(reMess.getKey());
+			}
+			if(reMess.getMsgType() == "putreq"){
+				kvServer.put(reMess.getKey(), reMess.getValue());
+			}
+			if(reMess.getMsgType() == "delreq"){
+				kvServer.del(reMess.getKey());
+			}
+		}
+
+		reEntry.clear();	//empty reEntry so that it can be filled again
 	}
 	
 	/**
