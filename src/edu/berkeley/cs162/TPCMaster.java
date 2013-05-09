@@ -82,19 +82,21 @@ public class TPCMaster {
 					KVMessage resp = new KVMessage ("resp");
 					try{
 						KVMessage registrationMessage = new KVMessage(client.getInputStream());
-						SlaveInfo reg = new SlaveInfo (registrationMessage.getMessage());
+						SlaveInfo toBeRegistered = new SlaveInfo (registrationMessage.getMessage());
 						synchronized(slaveInfoList){
-							int position = Collections.binarySearch(slaveInfoList, reg);
-							if (position >= 0){
-								slaveInfoList.set(position, reg);
+							int position = Collections.binarySearch(slaveInfoList, toBeRegistered);
+							if (position >= 0){ //slaveInfo  is already in the list
+								slaveInfoList.set(position, toBeRegistered);
 								resp.setMessage("Successfully registered "+ registrationMessage.getMessage());
-							}else{ //pos < 0
+							}else{ //pos < 0 so the item is not present already
+								//if there arent enough slaves there, add it
 								if(slaveInfoList.size() < numSlaves){
-									slaveInfoList.add(-1*(1+ position), reg);
+									//make the position positive. 
+									slaveInfoList.add(-1*(1+ position), toBeRegistered);
 									registrationMessage.setMessage("Successfully registered " + registrationMessage.getMessage());
-									
+								// if there are enough slaves, then replace it
 								}else{
-									slaveInfoList.set(position, reg);
+									slaveInfoList.set(position, toBeRegistered);
 									resp.setMessage("Successfully registered "+ registrationMessage.getMessage());
 								}
 							}
