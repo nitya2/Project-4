@@ -34,6 +34,9 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.TreeSet;
 
 public class TPCMaster {
@@ -58,7 +61,11 @@ public class TPCMaster {
 
 		@Override
 		public void handle(Socket client) throws IOException {
-			// implement me
+			try{
+				threadpool.addToQueue(new RegistrationHandler(client));
+			}catch(InterruptedException e){
+				e.printStackTrace();
+			}
 		}
 		
 		private class RegistrationHandler implements Runnable {
@@ -71,7 +78,44 @@ public class TPCMaster {
 
 			@Override
 			public void run() {
-				// implement me
+				try{
+					KVMessage resp = new KVMessage ("resp");
+					try{
+						KVMessage registrationMessage = new KVMessage(client.getInputStream());
+						SlaveInfo toBeRegistered = new SlaveInfo (registrationMessage.getMessage());
+						synchronized(slaveInfoList){
+							int position = Collections.binarySearch(slaveInfoList, toBeRegistered);
+							if (position >= 0){ //slaveInfo  is already in the list
+								slaveInfoList.set(position, toBeRegistered);
+								resp.setMessage("Successfully registered "+ registrationMessage.getMessage());
+							}else{ //pos < 0 so the item is not present already
+								//if there arent enough slaves there, add it
+								if(slaveInfoList.size() < numSlaves){
+									//make the position positive. 
+									slaveInfoList.add(-1*(1+ position), toBeRegistered);
+									registrationMessage.setMessage("Successfully registered " + registrationMessage.getMessage());
+								// if there are enough slaves, then replace it
+								}else{
+									slaveInfoList.set(position, toBeRegistered);
+									resp.setMessage("Successfully registered "+ registrationMessage.getMessage());
+								}
+							}
+							if (slaveInfoList.size() == numSlaves && !ready){
+								ready = true;
+								slaveInfoList.notifyAll();
+							}
+						}//synch
+					}catch (KVException e){
+						resp.setMessage("Registration unsuccessful");
+					}catch(IOException e){
+						resp.setMessage("Registration unsuccessful");
+
+					}
+					resp.sendMessage(client);
+				}catch(KVException e){
+					e.printStackTrace();
+					//not sure what to do here?
+				}
 			}
 		}	
 	}
@@ -80,13 +124,17 @@ public class TPCMaster {
 	 *  Data structure to maintain information about SlaveServers
 	 *
 	 */
-	private class SlaveInfo {
+	private class SlaveInfo implements Comparable<SlaveInfo> {
 		// 64-bit globally unique ID of the SlaveServer
 		private long slaveID = -1;
 		// Name of the host this SlaveServer is running on
 		private String hostName = null;
 		// Port which SlaveServer is listening to
 		private int port = -1;
+		
+		//keep track of socket and client
+		KVClient kvClient = null;
+		private Socket slaveSock = null;
 
 		/**
 		 * 
@@ -94,7 +142,27 @@ public class TPCMaster {
 		 * @throws KVException
 		 */
 		public SlaveInfo(String slaveInfo) throws KVException {
-			// implement me
+			KVMessage unparseError = new KVMessage("resp", "Registration Error: received unparsable slave information");
+			
+			//parse those out
+			String [] slaveInfoPieces = slaveInfo.split("[@:]");
+			if (slaveInfoPieces.length != 3){
+				throw new KVException(unparseError);
+			}else if (slaveInfo.indexOf("@") == -1 || slaveInfo.indexOf(":")==-1){
+				throw new KVException(unparseError);
+			}else if (slaveInfo.split("@").length != 2 || slaveInfo.split(":").length != 2){
+				throw new KVException (unparseError);
+			}else{
+				try{
+					slaveID = Long.parseLong(slaveInfoPieces[0]);
+					port = Integer.parseInt(slaveInfoPieces[2]);
+				}catch (NumberFormatException e){
+					throw new KVException(unparseError);
+				}
+				//set up the client with the host name
+				hostName = slaveInfoPieces[1];
+				kvClient = new KVClient(hostName, port);
+			}
 		}
 		
 		public long getSlaveID() {
@@ -109,8 +177,23 @@ public class TPCMaster {
 		public void closeHost(Socket sock) throws KVException {
 		    // TODO: Optional Implement Me!
 		}
+
+		@Override
+		public int compareTo(SlaveInfo arg0) {
+			if (this.slaveID == arg0.slaveID){
+				return 0;
+			}else{
+				return 1;
+			}
+		}
 	}
 	
+	//Must keep track of the slaves
+	//left side must be a list so you can use binarysearch in collections :)
+	private List<SlaveInfo> slaveInfoList = new ArrayList<SlaveInfo>();
+	
+	//Keep trak if its ready
+	private boolean ready = false;
 	// Timeout value used during 2PC operations
 	private static final int TIMEOUT_MILLISECONDS = 5000;
 	
@@ -201,8 +284,12 @@ public class TPCMaster {
 	private SlaveInfo findFirstReplica(String key) {
 		// 64-bit hash of the key
 		long hashedKey = hashTo64bit(key.toString());
-
-		// implement me
+		for (int i =0; i < slaveInfoList.size(); i++){
+			if (isLessThanUnsigned (hashedKey, slaveInfoList.get(i).getSlaveID())){
+				return slaveInfoList.get(i);
+			}
+		}
+		
 		return null;
 	}
 	
@@ -212,8 +299,8 @@ public class TPCMaster {
 	 * @return
 	 */
 	private SlaveInfo findSuccessor(SlaveInfo firstReplica) {
-		// implement me
-		return null;
+		int index = slaveInfoList.indexOf(firstReplica);
+		return slaveInfoList.get((index+1) % numSlaves);
 	}
 	
 	/**
