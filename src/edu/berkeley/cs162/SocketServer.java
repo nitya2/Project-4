@@ -61,10 +61,15 @@ public class SocketServer {
 	 * @throws IOException
 	 */
 	public void connect() throws IOException {
-		try{
-			this.server = new ServerSocket(port);
-		} catch (IOException e){
-			throw e;
+		try {
+			if (this.port <= 0) {
+				server = new ServerSocket(0);
+				this.port = server.getLocalPort();
+			} else {
+				server = new ServerSocket(this.port);
+			}
+		} catch (IOException e) {
+			
 		}
 	}
 	

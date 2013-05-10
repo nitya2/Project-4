@@ -30,11 +30,15 @@
  */
 package edu.berkeley.cs162;
 
+import java.util.LinkedList;
+
 public class ThreadPool {
 	/**
 	 * Set of threads in the threadpool
 	 */
 	protected Thread threads[] = null;
+	//This is basically a queue, add to the end and remove from the front
+	LinkedList<Runnable> jobsList;
 
 	/**
 	 * Initialize the number of threads required in the threadpool. 
@@ -43,7 +47,14 @@ public class ThreadPool {
 	 */
 	public ThreadPool(int size)
 	{      
-	    // TODO: implement me
+	    threads = new Thread[size];
+	    jobsList = new LinkedList<Runnable>();
+	    //start a new worker thread for each thread in threads
+	    for (int i=0; i < size ; i++){
+	    	threads[i] = new WorkerThread(this);
+	    	//JVM will call run when start() is called
+	    	threads[i].start();
+	    }
 	}
 
 	/**
@@ -52,9 +63,19 @@ public class ThreadPool {
 	 * @param r job that has to be executed asynchronously
 	 * @throws InterruptedException 
 	 */
-	public void addToQueue(Runnable r) throws InterruptedException
+	
+	//KATE: ADDED SYNCHRONIZED keyword. Piazza seems to indicate this is fine. 
+	//Basically, wait and notify need to be synched on the same object this ensures that.
+	public synchronized void addToQueue(Runnable r) throws InterruptedException
 	{
-	      // TODO: implement me
+	      
+	    	  jobsList.addLast(r);
+	    	//Gotta wake up sleeping/waiting threads at this point
+	    	  notify();
+	      
+
+	      
+
 	}
 	
 	/** 
@@ -63,8 +84,15 @@ public class ThreadPool {
 	 * @throws InterruptedException 
 	 */
 	public synchronized Runnable getJob() throws InterruptedException {
-	      // TODO: implement me
-	    return null;
+	  
+		   while (jobsList.isEmpty()){
+	   
+	    	
+	    		wait();
+	    	
+	    }
+	  
+	    return jobsList.removeFirst();
 	}
 }
 
@@ -77,9 +105,12 @@ class WorkerThread extends Thread {
 	 * 
 	 * @param o the thread pool 
 	 */
+	ThreadPool parentThreadPool;
+	boolean isRunning;
 	WorkerThread(ThreadPool o)
 	{
-	     // TODO: implement me
+	     parentThreadPool =o;
+	     isRunning = true;
 	}
 
 	/**
@@ -87,6 +118,13 @@ class WorkerThread extends Thread {
 	 */
 	public void run()
 	{
-	      // TODO: implement me
+	      while(isRunning){
+	    	try {
+				parentThreadPool.getJob().run();
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+	      }
 	}
 }

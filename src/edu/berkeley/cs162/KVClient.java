@@ -31,13 +31,18 @@
  */
 package edu.berkeley.cs162;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.Socket;
+import java.net.UnknownHostException;
 
 
 /**
  * This class is used to communicate with (appropriately marshalling and unmarshalling) 
  * objects implementing the {@link KeyValueInterface}.
  *
+ * @param <K> Java Generic type for the Key
+ * @param <V> Java Generic type for the Value
  */
 public class KVClient implements KeyValueInterface {
 
@@ -54,30 +59,109 @@ public class KVClient implements KeyValueInterface {
 	}
 	
 	private Socket connectHost() throws KVException {
-	    // TODO: Implement Me!  
-		return null;
+	    Socket toReturnSock = null;
+		try {
+			toReturnSock = new Socket(this.server, this.port);
+		} catch (UnknownHostException e) {
+			new KVException (new KVMessage("resp","Error: cannot connect to host"));
+		} catch (IOException e) {
+			
+		}
+		
+		return toReturnSock;
 	}
 	
 	private void closeHost(Socket sock) throws KVException {
 	    // TODO: Implement Me!
+	    try{
+		    sock.close();
+		}
+		catch (Exception e){
+			new KVException (new KVMessage("Error: cannot close socket"));
+		}
 	}
 	
 	public void put(String key, String value) throws KVException {
-	    // TODO: Implement Me from Project 3
-	    return;
+	    if(key == null || value == null)
+	    	throw new KVException (new KVMessage("Error: null key or value"));
+	    
+	    	Socket sock = connectHost();
+	    	
+	    	KVMessage request = new KVMessage("putreq");
+	    	request.setKey(key);
+	    	request.setValue(value);
+	    	request.sendMessage(sock);
+	    	
+	    	//Checkout the Response
+	    	KVMessage response = null;
+	    	InputStream is = null;
+	    	try {
+	    		is = sock.getInputStream();
+			} catch (IOException e) {
+				throw new KVException(new KVMessage("resp", "Network Error: Could not receive data"));
+			}
+	    	response = new KVMessage(is);
+	    	
+	    	if(response.getMessage().equals("IO Error")){
+	    		closeHost(sock);
+	    		throw new KVException(response);
+	    	}
+	    	closeHost(sock);
+	    
 	}
 
 	public String get(String key) throws KVException {
-		// TODO: Implement Me from Project 3
-	    return null;
+	    if(key == null)
+	    	throw new KVException (new KVMessage("Error: null"));
+	    
+	   
+	    	Socket sock = connectHost();
+	    	KVMessage mess = new KVMessage("getreq");
+	    	mess.setKey(key);
+	    	mess.sendMessage(sock);	 
+	    	
+	    	//Checkout the Response
+	    	KVMessage response = null;
+	    	InputStream is = null;
+	    	try {
+	    		is = sock.getInputStream();
+			} catch (IOException e) {
+				throw new KVException(new KVMessage("resp", "Network Error: Could not receive data"));
+			}
+	    	response = new KVMessage(is);
+	    	
+	    	 if (response.getValue() != null) {
+	             closeHost(sock);
+	 	    	return response.getValue();
+	         }
+	 	    throw new KVException(response);
+		
 	}
 	
 	public void del(String key) throws KVException {
-		// TODO: Implement Me from Project 3
-		return;
+	   	if(key == null)
+	    	throw new KVException (new KVMessage("Error: null key in delete"));
+	   
+	    	Socket sock = connectHost();
+	    	KVMessage mess = new KVMessage("delreq");
+	    	mess.setKey(key);
+	    	mess.sendMessage(sock);
+	    	
+	    	//Checkout the Response
+	    	KVMessage response = null;
+	    	InputStream is = null;
+	    	try {
+	    		is = sock.getInputStream();
+				response = new KVMessage(is);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+	    	
+	    	if(response.getMessage().equals("Does not exist")){
+	    		throw new KVException(response);
+	    	}
+	    
+	   	closeHost(sock);
 	}	
 	
-	public void ignoreNext() throws KVException {
-	    // TODO: Implement Me!
-	}
 }

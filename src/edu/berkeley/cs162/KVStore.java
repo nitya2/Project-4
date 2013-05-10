@@ -85,10 +85,6 @@ public class KVStore implements KeyValueInterface {
 			delDelay();
 			if(key != null)
 				this.store.remove(key);
-			else {
-			    KVMessage msg = new KVMessage("resp", "key \"" + key + "\" does not exist in store");
-			    throw new KVException(msg);
-			}
 		} finally {
 			AutoGrader.agStoreDelFinished(key);
 		}
@@ -106,16 +102,21 @@ public class KVStore implements KeyValueInterface {
 		AutoGrader.agStoreDelay();
 	}
 	
-    public String toXML() throws KVException {
+    public String toXML() {
         // TODO: implement me
         return null;
     }        
 
-    public void dumpToFile(String fileName) throws KVException {
+    public void dumpToFile(String fileName) {
         // TODO: implement me
     }
 
-    public void restoreFromFile(String fileName) throws KVException{
+    /**
+     * Replaces the contents of the store with the contents of a file
+     * written by dumpToFile; the previous contents of the store are lost.
+     * @param fileName the file to be read.
+     */
+    public void restoreFromFile(String fileName) {
         // TODO: implement me
     }
 }

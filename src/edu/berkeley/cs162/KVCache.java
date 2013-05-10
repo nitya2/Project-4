@@ -30,7 +30,16 @@
  */
 package edu.berkeley.cs162;
 
+import java.io.FileInputStream;
+import java.io.FileWriter;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.Scanner;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
+
+import javax.xml.stream.XMLOutputFactory;
+import javax.xml.stream.XMLStreamWriter;
 
 
 /**
@@ -41,7 +50,9 @@ import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 public class KVCache implements KeyValueInterface {	
 	private int numSets = 100;
 	private int maxElemsPerSet = 10;
-		
+	
+	private LinkedList<cacheEntry>[] cacheSet = null;
+	private WriteLock[] arrayOfLocks = null;
 	/**
 	 * Creates a new LRU cache.
 	 * @param cacheSize	the maximum number of entries that will be kept in this cache.
@@ -50,6 +61,18 @@ public class KVCache implements KeyValueInterface {
 		this.numSets = numSets;
 		this.maxElemsPerSet = maxElemsPerSet;     
 		// TODO: Implement Me!
+		cacheSet = (LinkedList<cacheEntry>[]) new LinkedList[this.numSets];
+		
+		for(int j = 0; j < this.numSets; j++){
+			cacheSet[j] = new LinkedList<cacheEntry>();
+		}
+		
+		arrayOfLocks = new WriteLock[this.numSets];
+		
+		for(int i = 0; i < this.numSets; i++){
+			ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
+			arrayOfLocks[i] = rwl.writeLock();
+		}
 	}
 
 	/**
@@ -64,10 +87,23 @@ public class KVCache implements KeyValueInterface {
 		AutoGrader.agCacheGetDelay();
         
 		// TODO: Implement Me!
+		int setLocation = getSetId(key);
+		String toReturn = null;
+		LinkedList<cacheEntry> kvSet = cacheSet[setLocation];
+		
+		cacheEntry entry = null;
+		for(int i = 0; i < kvSet.size(); i++){
+			entry = kvSet.get(i);
+			if(entry.key.equals(key)){
+				toReturn = entry.value;
+				entry.useBit = true;
+				break;
+			}
+		}
 		
 		// Must be called before returning
 		AutoGrader.agCacheGetFinished(key);
-		return null;
+		return toReturn;
 	}
 
 	/**
@@ -85,10 +121,66 @@ public class KVCache implements KeyValueInterface {
 		AutoGrader.agCachePutDelay();
 
 		// TODO: Implement Me!
+		int setLocation = getSetId(key);
 		
+		//Find the set
+		LinkedList<cacheEntry> kvSet = cacheSet[setLocation];
+
+		//First we will search to see if the List Exists 
+		cacheEntry entry = null;
+		boolean found = false;
+		
+		for(int i = 0; i < kvSet.size(); i++){
+			entry = kvSet.get(i);
+			
+			
+			//Check if the key matches
+			//Assuming "==" matches the string characters
+			if(entry.key.equals(key)){
+				entry.value = value;
+				entry.useBit = false;
+				found = true;
+				break;
+			}
+		}
+		
+		//If we haven't found entry in the scan
+		if(!found){
+			boolean addComplete = false;
+			
+			/* ****************************************************
+			 * Since we're moving around nodes in the LinkedList, 
+			 * we need to account for that when we scan           */
+			
+			//Default Case.
+			//When there is space available
+			if(kvSet.size() < this.maxElemsPerSet){
+				cacheEntry newEntry = new cacheEntry(key, value);
+				kvSet.add(newEntry);
+				addComplete = true;
+			}
+			
+			entry = null;
+			//Case when list is full
+			while(!addComplete){
+				//Always check the head (this is a changing element)
+				entry = kvSet.getFirst();
+				if(entry.useBit){
+					entry.useBit = false;
+					kvSet.removeFirst();
+					kvSet.add(entry);
+				} else {
+					cacheEntry newEntry = new cacheEntry(key, value);
+					//Remove head
+					kvSet.removeFirst();
+					//Add new entry
+					kvSet.add(newEntry);
+					addComplete = true;
+				}
+			}
+		}
 		// Must be called before returning
 		AutoGrader.agCachePutFinished(key, value);
-		return;
 	}
 
 	/**
@@ -102,7 +194,20 @@ public class KVCache implements KeyValueInterface {
 		AutoGrader.agCacheDelDelay();
 		
 		// TODO: Implement Me!
+		int setLocation = getSetId(key);
 		
+		//Find the set
+		LinkedList<cacheEntry> kvSet = cacheSet[setLocation];
+		//First we will search to see if the List Exists 
+		cacheEntry entry = null;
+		
+		for(int i = 0; i < kvSet.size(); i++){
+			entry = kvSet.get(i);
+			if(entry.key.equals(key)){
+				kvSet.remove(i);
+				break;
+			}
+		}
 		// Must be called before returning
 		AutoGrader.agCacheDelFinished(key);
 	}
@@ -113,7 +218,26 @@ public class KVCache implements KeyValueInterface {
 	 */
 	public WriteLock getWriteLock(String key) {
 	    // TODO: Implement Me!
+		int setLocation = getSetId(key);
+		//Find the set
+		LinkedList<cacheEntry> kvSet = cacheSet[setLocation];
+		//First we will search to see if the List Exists 
+		cacheEntry entry = null;
+		
+		return arrayOfLocks[setLocation];
+		
+		/*
+		//If the key exists in the cache, return the lock
+		for(int i = 0; i < kvSet.size(); i++){
+			entry = kvSet.get(i);
+			if(entry.key == key){
+				return arrayOfLocks[setLocation];
+			}
+		}
+		
 	    return null;
+	    
+	    */
 	}
 	
 	/**
@@ -122,11 +246,74 @@ public class KVCache implements KeyValueInterface {
 	 * @return	set of the key
 	 */
 	private int getSetId(String key) {
-		return (key.hashCode() & 0x7FFFFFFF) % numSets;
+		return Math.abs(key.hashCode()) % numSets;
 	}
 	
-    public String toXML() {
-        // TODO: Implement Me!
-        return null;
+    public String toXML() throws Exception{
+
+        XMLOutputFactory factory = XMLOutputFactory.newInstance();
+     	XMLStreamWriter writer = factory.createXMLStreamWriter(new FileWriter("cachedump.xml"));
+		writer.writeStartDocument();
+		writer.writeStartElement("KVCache");
+		int i = 0;
+		while (i < cacheSet.length) {
+			i++;
+			LinkedList<cacheEntry> listentries = cacheSet[i];
+			
+			writer.writeStartElement("Set");
+			writer.writeAttribute("Id", Integer.toString(i));
+			Iterator<cacheEntry> entries = listentries.iterator();
+			while (entries.hasNext()) {
+				String refd = "false";
+				cacheEntry curr = entries.next();
+   				if (curr.useBit) {
+					refd = "true";
+				}
+			writer.writeStartElement("CacheEntry");
+			writer.writeAttribute("isReferenced", refd);
+			writer.writeAttribute("isValid", "true");
+			writer.writeStartElement("Key");
+			writer.writeCharacters(curr.key);
+			writer.writeEndElement();
+			writer.writeStartElement("Value");
+			writer.writeCharacters(curr.value);
+			writer.writeEndElement();
+			writer.writeEndElement();
+			}
+			writer.writeEndElement();
+		}
+		
+		writer.writeEndElement();
+
+     		writer.flush();
+     		writer.close();
+		FileInputStream cachedump = new FileInputStream("cachedump.xml");
+		String toxml = new Scanner( cachedump ).useDelimiter("\\A").next();
+		return toxml;
     }
+    
+
+    public void printList(String key){
+    	int setLocation = getSetId(key);
+		//Find the set
+		LinkedList<cacheEntry> kvSet = cacheSet[setLocation];
+		cacheEntry entry = null;
+		for(int i = 0; i < kvSet.size(); i++){
+			entry = kvSet.get(i);
+			System.out.println(i+1 + ". " + entry.value + "     UseBit: " + entry.useBit);
+		}
+    }
+    
+	private class cacheEntry {
+		String key;
+		String value;
+		boolean	useBit;
+		
+		public cacheEntry(String aKey, String aValue){
+			this.key = aKey;
+			this.value = aValue;
+			this.useBit = false;
+		}
+	}
 }
+

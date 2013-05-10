@@ -90,6 +90,11 @@ public class TPCMasterHandler implements NetworkHandler {
 			// Receive message from client
 			// Implement me
 			KVMessage msg = null;
+			try {
+				msg = new KVMessage(client.getInputStream());
+			} catch (IOException | KVException e) {
+				return;
+			}
 
 			// Parse the message and do stuff 
 			String key = msg.getKey();

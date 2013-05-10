@@ -93,7 +93,7 @@ public class TPCLog {
 			inputStream = new ObjectInputStream(new FileInputStream(logPath));			
 			entries = (ArrayList<KVMessage>) inputStream.readObject();
 		} catch (Exception e) {
-			e.printStackTrace();
+			
 		} finally {
 			// If log never existed, there are no entries
 			if (entries == null) {
@@ -142,7 +142,7 @@ public class TPCLog {
 	public void rebuildKeyServer() throws KVException {
 		// implement me
 		try{
-		this.loadFromDisk(); 	//fills entries with KVMessage logs
+			this.loadFromDisk(); 	//fills entries with KVMessage logs
 		} catch (Exception e){
 			e.printStackTrace();
 		}
