@@ -39,7 +39,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.TreeSet;
 
-public class TPCMaster {
+public class TPCMaster{
 	
 	/**
 	 * Implements NetworkHandler to handle registration requests from 
@@ -61,15 +61,16 @@ public class TPCMaster {
 
 		@Override
 		public void handle(Socket client) throws IOException {
+			System.out.println("Received Registration Request");
+			Runnable r = new RegistrationHandler(client);
 			try{
-				threadpool.addToQueue(new RegistrationHandler(client));
+				threadpool.addToQueue(r);
 			}catch(InterruptedException e){
 				e.printStackTrace();
 			}
 		}
 		
 		private class RegistrationHandler implements Runnable {
-			
 			private Socket client = null;
 
 			public RegistrationHandler(Socket client) {
@@ -78,6 +79,7 @@ public class TPCMaster {
 
 			@Override
 			public void run() {
+				System.out.println("Running Registration for SlaveServer");
 				try{
 					KVMessage resp = new KVMessage ("resp");
 					try{
@@ -133,7 +135,7 @@ public class TPCMaster {
 		private int port = -1;
 		
 		//keep track of socket and client
-		KVClient kvClient = null;
+		//KVClient kvClient = null;
 		private Socket slaveSock = null;
 
 		/**
@@ -161,7 +163,7 @@ public class TPCMaster {
 				}
 				//set up the client with the host name
 				hostName = slaveInfoPieces[1];
-				kvClient = new KVClient(hostName, port);
+				//kvClient = new KVClient(hostName, port);
 			}
 		}
 		
@@ -169,13 +171,32 @@ public class TPCMaster {
 			return slaveID;
 		}
 		
-		public Socket connectHost() throws KVException {
-		    // TODO: Optional Implement Me!
-			return null;
+		public String hostName() {
+			return hostName;
 		}
 		
-		public void closeHost(Socket sock) throws KVException {
-		    // TODO: Optional Implement Me!
+		public int port() {
+			return port;
+		}
+		
+		public Socket connectHost() throws KVException {
+			try {
+				slaveSock = new Socket(hostName, port);
+			} catch (UnknownHostException e) {
+				throw new KVException(new KVMessage("resp", "Network Error: Could not create socket"));
+			} catch (IOException e) {
+				throw new KVException(new KVMessage("resp", "Network Error: Could not connect"));
+			}
+			return slaveSock;
+		}
+		
+		public void closeHost() throws KVException {
+			try {
+				slaveSock.close();
+			} catch (IOException e) {
+				throw new KVException(new KVMessage("resp", "Unknown Error: Error Closing Socket"));
+			}
+			slaveSock = null;
 		}
 
 		@Override
@@ -221,6 +242,7 @@ public class TPCMaster {
 
 		// Create registration server
 		regServer = new SocketServer("localhost", 9090);
+		
 	}
 	
 	/**
@@ -237,9 +259,27 @@ public class TPCMaster {
 	/**
 	 * Start registration server in a separate thread
 	 */
+	private class RegistrationRunaable implements Runnable {
+
+	    public void run() {
+	    	NetworkHandler handler = new TPCRegistrationHandler(numSlaves);
+			regServer.addHandler(handler);
+			try{
+				regServer.connect();
+				regServer.run();
+			} catch (IOException e){
+				
+			}
+			
+	    }
+	}
+	
 	public void run() {
 		AutoGrader.agTPCMasterStarted();
-		// implement me
+		System.out.println("Starting Registration Server");
+		
+		(new Thread(new RegistrationRunaable())).start();	
+		
 		AutoGrader.agTPCMasterFinished();
 	}
 	
@@ -313,8 +353,107 @@ public class TPCMaster {
 	 */
 	public synchronized void performTPCOperation(KVMessage msg, boolean isPutReq) throws KVException {
 		AutoGrader.agPerformTPCOperationStarted(isPutReq);
-		// implement me
+		//Get the Servers
+		SlaveInfo firstSlaveServer = findFirstReplica(msg.getKey());
+		SlaveInfo secondSlaveServer = findFirstReplica(msg.getKey());
+		
+		//Phase 1 -----------------------------------------------------------
+		KVMessage tpcOperation;
+		if(isPutReq){
+			tpcOperation = new KVMessage( "putreq");
+			tpcOperation.setValue(msg.getValue());			
+		} else {
+			tpcOperation = new KVMessage( "delreq");
+		}
+		
+		String opId = getNextTpcOpId();
+		tpcOperation.setKey(msg.getKey());
+		tpcOperation.setTpcOpId(opId);
+		
+		//Send To Servers
+		Socket firstSock = firstSlaveServer.connectHost();
+		Socket secondSock = secondSlaveServer.connectHost();
+		tpcOperation.sendMessage(firstSock);
+		tpcOperation.sendMessage(secondSock);
+		
+		//Phase 2 ------------------------------------------------------------------
+		KVMessage firstResp;
+		KVMessage secondResp;
+		
+		///Server 1
+		try {
+			firstResp = new KVMessage(firstSock.getInputStream());
+		} catch (IOException e) {
+			firstSlaveServer.closeHost();
+			throw new KVException(new KVMessage("resp", "Network Error: Could not receive data"));
+		} finally {
+			AutoGrader.agPerformTPCOperationFinished(isPutReq);
+		}
+		
+		//Server 2
+		try {
+			secondResp = new KVMessage(secondSock.getInputStream());
+		} catch (IOException e) {
+			KVMessage tpcAbort = new KVMessage("abort");
+			tpcAbort.setTpcOpId(opId);
+			tpcAbort.sendMessage(firstSock);
+			
+			firstSlaveServer.closeHost();
+			secondSlaveServer.closeHost();
+			throw new KVException(new KVMessage("resp", "Network Error: Could not receive data"));
+		} finally {
+			AutoGrader.agPerformTPCOperationFinished(isPutReq);
+		}
+		
+		//If abort is replied
+		KVMessage tpcReply;
+		if (firstResp.getMessage().equals("ready") || secondResp.getMessage().equals("ready")){
+			tpcReply = new KVMessage("commit");
+		} else {
+			tpcReply = new KVMessage("abort");
+		}
+		
+		tpcReply.setTpcOpId(opId);
+		tpcReply.sendMessage(firstSock);
+		tpcReply.sendMessage(secondSock);
+			
+		//Server1
+		while(true){
+			tpcReply.sendMessage(firstSock);
+			try {					
+				firstResp = new KVMessage(firstSock.getInputStream());
+				if(firstResp.getMessage().equals("ack")){
+					break;
+			}
+			} catch (IOException e) {
+				int i = TIMEOUT_MILLISECONDS;
+				while(i-- != 0){
+					//Wait
+				}
+				continue;
+			}				
+		}
+		//Server2
+		while(true){
+			tpcReply.sendMessage(secondSock);
+			try {
+				secondResp = new KVMessage(secondSock.getInputStream());
+				if(secondResp.getMessage().equals("ack")){
+					break;
+				}
+			} catch (IOException e) {
+				int i = TIMEOUT_MILLISECONDS;
+				while(i-- != 0){
+					//Wait
+				}
+				continue;
+			}				
+		}
+		firstSlaveServer.closeHost();
+		secondSlaveServer.closeHost();
+		
 		AutoGrader.agPerformTPCOperationFinished(isPutReq);
+	
 		return;
 	}
 
@@ -332,8 +471,43 @@ public class TPCMaster {
 	 */
 	public String handleGet(KVMessage msg) throws KVException {
 		AutoGrader.aghandleGetStarted();
-		// implement me
+		
+		String toReturn = null;
+
+		SlaveInfo firstSlaveServer = findFirstReplica(msg.getKey());
+		Socket firstSock = firstSlaveServer.connectHost();
+		
+		KVMessage resp = null;
+		//Try First Server
+		try{
+			msg.sendMessage(firstSock);
+			resp = new KVMessage(firstSock.getInputStream());
+			if(resp.getValue() != null){
+				toReturn = resp.getValue();
+			}
+		} catch (KVException | IOException e){
+					
+		}	
+		firstSlaveServer.closeHost();
+		
+		//Try Second Server if still null
+		if(toReturn == null){
+			SlaveInfo secondSlaveServer = findFirstReplica(msg.getKey());
+			Socket secondSock = secondSlaveServer.connectHost();
+			msg.sendMessage(secondSock);
+			
+			try {
+				resp = new KVMessage(secondSock.getInputStream());
+				if(resp.getValue() != null){
+					toReturn = resp.getValue();
+				}
+			} catch (IOException e1) {
+				
+			}	
+			secondSlaveServer.closeHost();
+		}
+		
 		AutoGrader.aghandleGetFinished();
-		return null;
+		return toReturn;
 	}
 }

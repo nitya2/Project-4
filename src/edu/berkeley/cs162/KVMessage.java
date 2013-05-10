@@ -487,12 +487,5 @@ public class KVMessage implements Serializable {
 
 		}
 	}
-	
-	public void sendMessage(Socket sock, int timeout) throws KVException {
-		/*
-		 * As was pointed out, setting a timeout when sending the message (while would still technically work),
-		 * is a bit silly. As such, this method will be taken out at the end of Spring 2013.
-		 */
-		// TODO: optional implement me
-	}
+
 }

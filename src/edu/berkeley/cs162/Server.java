@@ -53,7 +53,7 @@ public class Server {
 		NetworkHandler handler = new KVClientHandler(tpcMaster);
 		server.addHandler(handler);
 		server.connect();
-		System.out.println("Starting Master");
+		System.out.println("Starting Master @"+InetAddress.getLocalHost().getHostAddress());
 		server.run();		
 	}
 
