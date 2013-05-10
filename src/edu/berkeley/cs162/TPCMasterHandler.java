@@ -50,10 +50,14 @@ public class TPCMasterHandler implements NetworkHandler {
 	// Used to handle the "ignoreNext" message
 	private boolean ignoreNext = false;
 	
+	
 	// States carried from the first to the second phase of a 2PC operation
 	private KVMessage originalMessage = null;
 	private boolean aborted = true;	
-
+	
+	private boolean overwrite = false;
+	private String placeHolderInCaseOfAbort = null;
+	
 	public TPCMasterHandler(KVServer keyserver) {
 		this(keyserver, 1);
 	}
@@ -73,7 +77,7 @@ public class TPCMasterHandler implements NetworkHandler {
 	private class ClientHandler implements Runnable {
 		private KVServer keyserver = null;
 		private Socket client = null;
-		
+
 		private void closeConn() {
 			try {
 				client.close();
@@ -92,51 +96,104 @@ public class TPCMasterHandler implements NetworkHandler {
 			
 			if (msg.getMsgType().equals("putreq")) {
 				handlePut(msg, key);
+				tpcLog.appendAndFlush(msg);
 			}
 			else if (msg.getMsgType().equals("getreq")) {
 				handleGet(msg, key);
+				tpcLog.appendAndFlush(msg);
 			}
 			else if (msg.getMsgType().equals("delreq")) {
 				handleDel(msg, key);
+				tpcLog.appendAndFlush(msg);
 			} 
 			else if (msg.getMsgType().equals("ignoreNext")) {
 				// Set ignoreNext to true. PUT and DEL handlers know what to do.
-				// Implement me
-				
+				ignoreNext = true;
 				// Send back an acknowledgment
-				// Implement me
+				KVMessage response = null;
+				try {
+					response = new KVMessage("resp", "Success");
+					response.setTpcOpId(msg.getTpcOpId());
+					response.sendMessage(client);
+				} catch (KVException e) {
+					e.printStackTrace();
+				}
+
 			}
 			else if (msg.getMsgType().equals("commit") || msg.getMsgType().equals("abort")) {
 				// Check in TPCLog for the case when SlaveServer is restarted
-				// Implement me
-				
+				// Implement me	
 				handleMasterResponse(msg, originalMessage, aborted);
+				tpcLog.appendAndFlush(msg);
 				
+				sendACK(client, msg.getTpcOpId());
 				// Reset state
-				// Implement me
+				overwrite = false;
+				ignoreNext = false;
+				placeHolderInCaseOfAbort = null;
+				aborted = false;
 			}
 			
 			// Finally, close the connection
 			closeConn();
 		}
-
+				
 		private void handlePut(KVMessage msg, String key) {
 			AutoGrader.agTPCPutStarted(slaveID, msg, key);
-			
+			if(ignoreNext){
+				sendACK(client, msg.getTpcOpId());
+				closeConn();
+				AutoGrader.agGetFinished(slaveID);
+				return;
+			}
 			// Store for use in the second phase
 			originalMessage = new KVMessage(msg);
 			
-			// Implement me
+			try {
+				placeHolderInCaseOfAbort = kvServer.get(key);
+				if(placeHolderInCaseOfAbort != null){
+					overwrite = true;
+				}
+			} catch (KVException e) {
+				//Do Nothing
+			}
 
+			try{
+				kvServer.put(key, msg.getValue());
+			} catch (KVException e) {
+				aborted = true;
+				sendAbort(client, msg.getTpcOpId());
+				closeConn();
+				AutoGrader.agTPCPutFinished(slaveID, msg, key);
+				return;
+			}
+			sendReady(client, msg.getTpcOpId());
+			closeConn();
 			AutoGrader.agTPCPutFinished(slaveID, msg, key);
 		}
 		
  		private void handleGet(KVMessage msg, String key) {
  			AutoGrader.agGetStarted(slaveID);
-			
- 			// Implement me
+			String toReturn = null;
+ 			try {
+ 				toReturn = kvServer.get(key);
+				
+			} catch (KVException e) {
+				//Do Nothing
+			}
  			
- 			AutoGrader.agGetFinished(slaveID);
+ 			//Send Message
+ 			KVMessage resp;
+			try {
+				resp = new KVMessage("resp");
+				resp.setValue(toReturn);
+	 			resp.setKey(msg.getKey());
+	 			resp.sendMessage(client);
+			} catch (KVException e) {
+				e.printStackTrace();
+			}
+			closeConn();
+			AutoGrader.agGetFinished(slaveID);
 		}
 		
 		private void handleDel(KVMessage msg, String key) {
@@ -145,8 +202,32 @@ public class TPCMasterHandler implements NetworkHandler {
 			// Store for use in the second phase
 			originalMessage = new KVMessage(msg);
 			
-			// Implement me
+			if(ignoreNext){
+				sendACK(client, msg.getTpcOpId());
+				closeConn();
+				AutoGrader.agGetFinished(slaveID);
+				return;
+			}
 			
+			//Get Original value and store in case of abort
+			try {
+				placeHolderInCaseOfAbort = kvServer.get(key);
+				if(placeHolderInCaseOfAbort != null){
+					overwrite = true;
+				}
+			} catch (KVException e) {
+				//Do Nothing
+			}
+			
+			try {
+				kvServer.del(key);
+				
+			} catch (KVException e) {
+				aborted = true;
+				sendAbort(client, msg.getTpcOpId());
+			}
+			
+			closeConn();
 			AutoGrader.agTPCDelFinished(slaveID, msg, key);
 		}
 
@@ -160,8 +241,28 @@ public class TPCMasterHandler implements NetworkHandler {
 		private void handleMasterResponse(KVMessage masterResp, KVMessage origMsg, boolean origAborted) {
 			AutoGrader.agSecondPhaseStarted(slaveID, origMsg, origAborted);
 			
-			// Implement me
+			if(origAborted){
+				sendACK(client, masterResp.getTpcOpId());
+			} else if( masterResp.getMsgType().equals("abort")) {
+				try{
+					if( origMsg.getMsgType().equals("put")){
+						if(overwrite){
+							kvServer.put(origMsg.getKey(), placeHolderInCaseOfAbort);
+						} else{
+							kvServer.del(origMsg.getKey());
+						}
+					}
+					if( origMsg.getMsgType().equals("del")){
+							kvServer.put(origMsg.getKey(), placeHolderInCaseOfAbort);
+					}
+				} catch (KVException e){
+					
+				}
+			} else if( masterResp.getMsgType().equals("commit")) {
+				
+			}
 			
+			closeConn();
 			AutoGrader.agSecondPhaseFinished(slaveID, origMsg, origAborted);
 		}
 
@@ -171,6 +272,35 @@ public class TPCMasterHandler implements NetworkHandler {
 		}
 	}
 
+	public void sendACK(Socket aClient, String tpcID){
+		try {
+			KVMessage ack = new KVMessage("ack");
+			ack.setTpcOpId(tpcID);
+			ack.sendMessage(aClient);
+		} catch (KVException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public void sendAbort(Socket aClient, String tpcID){
+		try {
+			KVMessage ack = new KVMessage("abort");
+			ack.setTpcOpId(tpcID);
+			ack.sendMessage(aClient);
+		} catch (KVException e) {
+			e.printStackTrace();
+		}
+	}
+	public void sendReady(Socket aClient, String tpcID){
+		try {
+			KVMessage ready = new KVMessage("ready");
+			ready.setTpcOpId(tpcID);
+			ready.sendMessage(aClient);
+		} catch (KVException e) {
+			e.printStackTrace();
+		}
+	}
+	
 	@Override
 	public void handle(Socket client) throws IOException {
 		AutoGrader.agReceivedTPCRequest(slaveID);
