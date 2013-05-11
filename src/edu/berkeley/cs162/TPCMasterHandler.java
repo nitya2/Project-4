@@ -92,7 +92,9 @@ public class TPCMasterHandler implements NetworkHandler {
 			KVMessage msg = null;
 			try {
 				msg = new KVMessage(client.getInputStream());
-			} catch (IOException | KVException e) {
+			} catch (IOException e){
+				return;
+			}catch (KVException e){
 				return;
 			}
 

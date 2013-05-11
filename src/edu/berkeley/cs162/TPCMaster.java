@@ -46,6 +46,17 @@ public class TPCMaster{
 	 * SlaveServers.
 	 * 
 	 */
+	//FOR TESTING
+	public SlaveInfo makeSlaveInfo (String message){
+		try{
+			SlaveInfo slave = new SlaveInfo(message);
+			return slave;
+		}catch(KVException e){
+			System.err.println(e.getMsg().getMessage());
+			return null;
+		}
+	}
+
 	private class TPCRegistrationHandler implements NetworkHandler {
 
 		private ThreadPool threadpool = null;
@@ -58,7 +69,7 @@ public class TPCMaster{
 		public TPCRegistrationHandler(int connections) {
 			threadpool = new ThreadPool(connections);	
 		}
-
+	
 		@Override
 		public void handle(Socket client) throws IOException {
 			System.out.println("Received Registration Request");
@@ -153,6 +164,8 @@ public class TPCMaster{
 			//parse those out
 			String [] slaveInfoPieces = slaveInfo.split("[@:]");
 			if (slaveInfoPieces.length != 3){
+				throw new KVException(unparseError);
+			}else if(slaveInfo.indexOf(":") < slaveInfo.indexOf("@") ){
 				throw new KVException(unparseError);
 			}else if (slaveInfo.indexOf("@") == -1 || slaveInfo.indexOf(":")==-1){
 				throw new KVException(unparseError);
@@ -514,9 +527,11 @@ public class TPCMaster{
 			if(resp.getValue() != null){
 				toReturn = resp.getValue();
 			}
-		} catch (KVException | IOException e){
+		} catch (KVException e ){
 					
-		}	
+		}catch (IOException e){
+			
+		}
 		firstSlaveServer.closeHost();
 		
 		//Try Second Server if still null
