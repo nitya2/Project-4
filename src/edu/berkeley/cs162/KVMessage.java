@@ -360,8 +360,8 @@ public class KVMessage implements Serializable {
 				rootElement.appendChild(valueChild);
 			}else{
 				throw new KVException (new KVMessage("resp", "XML Error: Received unparseable message"));
+			}
 		}
-
 		if (msgType == "commit" || msgType == "ack"){
 			Element id = newDoc.createElement("TPCOpId");
 			id.setTextContent(this.message);
@@ -379,7 +379,7 @@ public class KVMessage implements Serializable {
 				rootElement.appendChild(tpIdElem);
 				}
 		}
-		if (msgType == "register"){
+		if (msgType.equals("register")){
 			Element message = newDoc.createElement("Message");
 			message.setTextContent(this.message);
 			rootElement.appendChild(message);
@@ -393,7 +393,7 @@ public class KVMessage implements Serializable {
 			rootElement.appendChild(tpId);
 		}
 
-		}
+		
 		if (msgType == "resp"){
 			//if resp has K&V
 			if (key !=null && value != null){
@@ -468,6 +468,7 @@ public class KVMessage implements Serializable {
 	public void sendMessage(Socket sock) throws KVException {
 		String xml = this.toXML();
 		Writer output;
+		System.out.println("Sent: " + xml);
 		try{
 			output = new OutputStreamWriter(sock.getOutputStream());
 			output.write(xml);

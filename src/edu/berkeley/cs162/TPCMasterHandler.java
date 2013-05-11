@@ -99,6 +99,13 @@ public class TPCMasterHandler implements NetworkHandler {
 			// Parse the message and do stuff 
 			String key = msg.getKey();
 			
+			try {
+				System.out.println(msg.toXML());
+			} catch (KVException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+			
 			if (msg.getMsgType().equals("putreq")) {
 				handlePut(msg, key);
 				tpcLog.appendAndFlush(msg);

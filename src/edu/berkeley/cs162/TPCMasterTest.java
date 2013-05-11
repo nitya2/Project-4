@@ -19,8 +19,8 @@ public class TPCMasterTest {
 	SlaveServer slave2 = null;
 	@Before
 	public void setUp() throws Exception {
-		//testMaster = new TPCMaster(10);
-		//testMaster.run();
+		testMaster = new TPCMaster(10);
+		testMaster.run();
 		
 		long slaveID1 = 0L;
 		slave1 = new SlaveServer("localhost", 9090, 8080, slaveID1+ "@localhost:5151");
@@ -50,15 +50,24 @@ public class TPCMasterTest {
 		assertTrue(slave2.receivedRegistrationACK);
 	}
 	
-	
-	
-	
+	@Test
+	public void testGet() {
+		KVMessage getreq;
+		try {
+			getreq = new KVMessage("getreq");
+			getreq.setValue("getreq");
+			String testValue = testMaster.handleGet(getreq);
+			assertEquals(testValue, "succesS");
+		} catch (KVException e) {
+			fail();
+		}		
+	}
 	
 	
 	public class SlaveServer implements Runnable{
 		ServerSocket sock;
 		boolean receivedRegistrationACK = false;
-		
+		ThreadPool pool = null;
 		boolean phase1Break = false;
 		boolean phase2Break = false;
 		
@@ -73,6 +82,7 @@ public class TPCMasterTest {
 				if(resp.getMessage().equals("Successfully registered " + namePort)){
 					receivedRegistrationACK = true;
 				}
+				regServer.close();
 				sock = new ServerSocket(port);
 			} catch (Exception e) {
 				

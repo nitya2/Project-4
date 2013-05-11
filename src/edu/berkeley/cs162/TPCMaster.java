@@ -94,8 +94,8 @@ public class TPCMaster{
 								//if there arent enough slaves there, add it
 								if(slaveInfoList.size() < numSlaves){
 									//make the position positive. 
-									slaveInfoList.add(-1*(1+ position), toBeRegistered);
-									registrationMessage.setMessage("Successfully registered " + registrationMessage.getMessage());
+									slaveInfoList.add(toBeRegistered);
+									resp.setMessage("Successfully registered " + registrationMessage.getMessage());
 								// if there are enough slaves, then replace it
 								}else{
 									slaveInfoList.set(position, toBeRegistered);
@@ -326,11 +326,18 @@ public class TPCMaster{
 		long hashedKey = hashTo64bit(key.toString());
 		for (int i =0; i < slaveInfoList.size(); i++){
 			if (isLessThanUnsigned (hashedKey, slaveInfoList.get(i).getSlaveID())){
-				return slaveInfoList.get(i);
+				//Corner Case, if it is less than the first server and more than the last server then it belongs here
+				if(i == 0){
+					if(!isLessThanEqualUnsigned (hashedKey, slaveInfoList.get(slaveInfoList.size()-1).getSlaveID())){
+						return slaveInfoList.get(i);
+					}
+				} else if(!isLessThanEqualUnsigned (hashedKey, slaveInfoList.get(i-1).getSlaveID()))
+					return slaveInfoList.get(i);
 			}
 		}
 		
-		return null;
+		//If We're still here this must mean the hash is more than all of the slave Infos
+		return slaveInfoList.get(slaveInfoList.size()-1);
 	}
 	
 	/**
@@ -340,7 +347,12 @@ public class TPCMaster{
 	 */
 	private SlaveInfo findSuccessor(SlaveInfo firstReplica) {
 		int index = slaveInfoList.indexOf(firstReplica);
-		return slaveInfoList.get((index+1) % numSlaves);
+		if(index == slaveInfoList.size()-1){
+			return slaveInfoList.get(0);
+		} else {
+			return slaveInfoList.get(index+1);
+		}
+		
 	}
 	
 	/**
@@ -355,7 +367,7 @@ public class TPCMaster{
 		AutoGrader.agPerformTPCOperationStarted(isPutReq);
 		//Get the Servers
 		SlaveInfo firstSlaveServer = findFirstReplica(msg.getKey());
-		SlaveInfo secondSlaveServer = findFirstReplica(msg.getKey());
+		SlaveInfo secondSlaveServer = findSuccessor(firstSlaveServer);
 		
 		//Phase 1 -----------------------------------------------------------
 		KVMessage tpcOperation;
