@@ -77,13 +77,13 @@ public class KVClient implements KeyValueInterface {
 		    sock.close();
 		}
 		catch (Exception e){
-			new KVException (new KVMessage("Error: cannot close socket"));
+			new KVException (new KVMessage("resp","Error: cannot close socket"));
 		}
 	}
 	
 	public void put(String key, String value) throws KVException {
 	    if(key == null || value == null)
-	    	throw new KVException (new KVMessage("Error: null key or value"));
+	    	throw new KVException (new KVMessage("resp","Error: null key or value"));
 	    
 	    	Socket sock = connectHost();
 	    	
@@ -112,7 +112,7 @@ public class KVClient implements KeyValueInterface {
 
 	public String get(String key) throws KVException {
 	    if(key == null)
-	    	throw new KVException (new KVMessage("Error: null"));
+	    	throw new KVException (new KVMessage("resp","Error: null"));
 	    
 	   
 	    	Socket sock = connectHost();
@@ -140,7 +140,7 @@ public class KVClient implements KeyValueInterface {
 	
 	public void del(String key) throws KVException {
 	   	if(key == null)
-	    	throw new KVException (new KVMessage("Error: null key in delete"));
+	    	throw new KVException (new KVMessage("resp","Error: null key in delete"));
 	   
 	    	Socket sock = connectHost();
 	    	KVMessage mess = new KVMessage("delreq");
@@ -163,5 +163,9 @@ public class KVClient implements KeyValueInterface {
 	    
 	   	closeHost(sock);
 	}	
+	
+	public void ignoreNext() throws KVException {
+	   
+	}
 	
 }

@@ -100,7 +100,7 @@ public class TPCMasterHandler implements NetworkHandler {
 			String key = msg.getKey();
 			
 			try {
-				System.out.println(msg.toXML());
+				System.out.println("Received" + msg.toXML());
 			} catch (KVException e1) {
 				// TODO Auto-generated catch block
 				e1.printStackTrace();
@@ -154,7 +154,6 @@ public class TPCMasterHandler implements NetworkHandler {
 			AutoGrader.agTPCPutStarted(slaveID, msg, key);
 			if(ignoreNext){
 				sendACK(client, msg.getTpcOpId());
-				closeConn();
 				AutoGrader.agGetFinished(slaveID);
 				return;
 			}
@@ -175,12 +174,10 @@ public class TPCMasterHandler implements NetworkHandler {
 			} catch (KVException e) {
 				aborted = true;
 				sendAbort(client, msg.getTpcOpId());
-				closeConn();
 				AutoGrader.agTPCPutFinished(slaveID, msg, key);
 				return;
 			}
 			sendReady(client, msg.getTpcOpId());
-			closeConn();
 			AutoGrader.agTPCPutFinished(slaveID, msg, key);
 		}
 		
@@ -204,7 +201,6 @@ public class TPCMasterHandler implements NetworkHandler {
 			} catch (KVException e) {
 				e.printStackTrace();
 			}
-			closeConn();
 			AutoGrader.agGetFinished(slaveID);
 		}
 		
@@ -216,7 +212,6 @@ public class TPCMasterHandler implements NetworkHandler {
 			
 			if(ignoreNext){
 				sendACK(client, msg.getTpcOpId());
-				closeConn();
 				AutoGrader.agGetFinished(slaveID);
 				return;
 			}
@@ -238,8 +233,7 @@ public class TPCMasterHandler implements NetworkHandler {
 				aborted = true;
 				sendAbort(client, msg.getTpcOpId());
 			}
-			
-			closeConn();
+
 			AutoGrader.agTPCDelFinished(slaveID, msg, key);
 		}
 
@@ -274,7 +268,6 @@ public class TPCMasterHandler implements NetworkHandler {
 				
 			}
 			
-			closeConn();
 			AutoGrader.agSecondPhaseFinished(slaveID, origMsg, origAborted);
 		}
 

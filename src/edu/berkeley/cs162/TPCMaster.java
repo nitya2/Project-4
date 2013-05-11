@@ -369,6 +369,7 @@ public class TPCMaster{
 		SlaveInfo firstSlaveServer = findFirstReplica(msg.getKey());
 		SlaveInfo secondSlaveServer = findSuccessor(firstSlaveServer);
 		
+		System.out.println("Phase 1 Started");
 		//Phase 1 -----------------------------------------------------------
 		KVMessage tpcOperation;
 		if(isPutReq){
@@ -385,16 +386,18 @@ public class TPCMaster{
 		//Send To Servers
 		Socket firstSock = firstSlaveServer.connectHost();
 		Socket secondSock = secondSlaveServer.connectHost();
-		tpcOperation.sendMessage(firstSock);
-		tpcOperation.sendMessage(secondSock);
 		
-		//Phase 2 ------------------------------------------------------------------
+		
+		
+		
 		KVMessage firstResp;
 		KVMessage secondResp;
 		
-		///Server 1
+		///Send to Server 1
 		try {
+			tpcOperation.sendMessage(firstSock);
 			firstResp = new KVMessage(firstSock.getInputStream());
+			System.out.println("Received: " + firstResp.toXML());
 		} catch (IOException e) {
 			firstSlaveServer.closeHost();
 			throw new KVException(new KVMessage("resp", "Network Error: Could not receive data"));
@@ -402,9 +405,11 @@ public class TPCMaster{
 			AutoGrader.agPerformTPCOperationFinished(isPutReq);
 		}
 		
-		//Server 2
+		///Send to Server 2
 		try {
+			tpcOperation.sendMessage(secondSock);
 			secondResp = new KVMessage(secondSock.getInputStream());
+			System.out.println("Received: " + secondResp.toXML());
 		} catch (IOException e) {
 			KVMessage tpcAbort = new KVMessage("abort");
 			tpcAbort.setTpcOpId(opId);
@@ -419,22 +424,28 @@ public class TPCMaster{
 		
 		//If abort is replied
 		KVMessage tpcReply;
-		if (firstResp.getMessage().equals("ready") || secondResp.getMessage().equals("ready")){
+		if (firstResp.getMsgType().equals("ready") && secondResp.getMsgType().equals("ready")){
 			tpcReply = new KVMessage("commit");
 		} else {
 			tpcReply = new KVMessage("abort");
 		}
 		
 		tpcReply.setTpcOpId(opId);
-		tpcReply.sendMessage(firstSock);
-		tpcReply.sendMessage(secondSock);
-			
+		
+		//firstSlaveServer.closeHost();
+		//secondSlaveServer.closeHost();
+		
+		System.out.println("Phase 2 Started");
+		//Phase 2 ------------------------------------------------------------------
+		
+		firstSock = firstSlaveServer.connectHost();	
 		//Server1
 		while(true){
 			tpcReply.sendMessage(firstSock);
 			try {					
 				firstResp = new KVMessage(firstSock.getInputStream());
-				if(firstResp.getMessage().equals("ack")){
+				if(firstResp.getMsgType().equals("ack")){
+					System.out.println("Received: " + firstResp.toXML());
 					break;
 			}
 			} catch (IOException e) {
@@ -446,11 +457,13 @@ public class TPCMaster{
 			}				
 		}
 		//Server2
+		secondSock = secondSlaveServer.connectHost();
 		while(true){
 			tpcReply.sendMessage(secondSock);
 			try {
 				secondResp = new KVMessage(secondSock.getInputStream());
-				if(secondResp.getMessage().equals("ack")){
+				if(secondResp.getMsgType().equals("ack")){
+					System.out.println("Received: " + secondResp.toXML());
 					break;
 				}
 			} catch (IOException e) {
@@ -465,7 +478,7 @@ public class TPCMaster{
 		secondSlaveServer.closeHost();
 		
 		AutoGrader.agPerformTPCOperationFinished(isPutReq);
-	
+		System.out.println("Phase 2 Finish");
 		return;
 	}
 

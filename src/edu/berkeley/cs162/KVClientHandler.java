@@ -103,14 +103,12 @@ public class KVClientHandler implements NetworkHandler {
 				try {
 					msg = new KVMessage("resp","Success");
 				} catch (KVException e1) {
-					// TODO Auto-generated catch block
 					e1.printStackTrace();
 				}
 				
 		    	try {
 					msg.sendMessage(client);
 				} catch (KVException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 		    /* ************* Get Request ******************* */
