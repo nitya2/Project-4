@@ -80,6 +80,8 @@ public class TPCMaster{
 			@Override
 			public void run() {
 				System.out.println("Running Registration for SlaveServer");
+
+				
 				try{
 					KVMessage resp = new KVMessage ("resp");
 					try{
@@ -94,12 +96,14 @@ public class TPCMaster{
 								//if there arent enough slaves there, add it
 								if(slaveInfoList.size() < numSlaves){
 									//make the position positive. 
+
 									slaveInfoList.add(toBeRegistered);
 									resp.setMessage("Successfully registered " + registrationMessage.getMessage());
+
 								// if there are enough slaves, then replace it
 								}else{
 									slaveInfoList.set(position, toBeRegistered);
-									resp.setMessage("Successfully registered "+ registrationMessage.getMessage());
+									resp.setMessage(String.format("Successfully registered %s@%s:%s"+ toBeRegistered.slaveID, toBeRegistered.hostName, toBeRegistered.port));
 								}
 							}
 							if (slaveInfoList.size() == numSlaves && !ready){
@@ -108,9 +112,9 @@ public class TPCMaster{
 							}
 						}//synch
 					}catch (KVException e){
-						resp.setMessage("Registration unsuccessful");
+						resp.setMessage("Unknown Error: Registration unsuccessful");
 					}catch(IOException e){
-						resp.setMessage("Registration unsuccessful");
+						resp.setMessage("Unknown Error: Registration unsuccessful");
 
 					}
 					resp.sendMessage(client);
