@@ -3,6 +3,7 @@ package edu.berkeley.cs162;
 import static org.junit.Assert.*;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -11,7 +12,44 @@ import java.util.Random;
 import org.junit.Test;
 
 public class kateTest {
-
+	
+	static SocketServer server = null;
+	static TPCMaster master = null;
+	
+	public void setUp(){
+		master = new TPCMaster(6);
+		master.run();
+		
+		try {
+			server = new SocketServer(InetAddress.getLocalHost().getHostAddress(), 8080);
+		} catch (UnknownHostException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		NetworkHandler handler = new KVClientHandler(master);
+		server.addHandler(handler);
+		try {
+			server.connect();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		System.out.println("connected to server");
+		
+		Thread serverThread = new Thread(new Runnable(){
+			@Override 
+			public void run(){
+				try{
+					System.out.println("Starting server thread");
+					server.run();
+				}catch(IOException e){
+					e.printStackTrace();
+				}
+			}
+		});
+		serverThread.start();
+		
+	}
 	@Test
 	public void test() {
 		System.out.println("running slaveinfo parsing test...");
