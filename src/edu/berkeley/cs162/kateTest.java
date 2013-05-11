@@ -9,13 +9,14 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Random;
 
+import org.junit.Before;
 import org.junit.Test;
 
 public class kateTest {
 	
 	static SocketServer server = null;
 	static TPCMaster master = null;
-	
+	@Before
 	public void setUp(){
 		master = new TPCMaster(6);
 		master.run();
