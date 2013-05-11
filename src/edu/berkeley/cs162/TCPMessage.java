@@ -13,7 +13,8 @@ public class TCPMessage extends KVMessage implements Serializable {
 	private String tcpOpId = null;
 	//isputresp?
 	
-	public TCPMessage( String msgType){
+	public TCPMessage(String msgType){
+		//super(msgType);
 		this.msgType = msgType;
 	}
 	
