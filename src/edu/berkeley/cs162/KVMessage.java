@@ -349,7 +349,7 @@ public class KVMessage implements Serializable {
 		if (!msgTypes.contains(msgType)){
 			throw new KVException (new KVMessage("resp", "XML Error: Received unparseable message"));
 		}
-		if (msgType == "putreq"){
+		if (msgType.equals("putreq")){
 			if (key !=null && value !=null){
 				Element keyChild = newDoc.createElement("Key");
 				keyChild.setTextContent(key);
@@ -362,13 +362,13 @@ public class KVMessage implements Serializable {
 				throw new KVException (new KVMessage("resp", "XML Error: Received unparseable message"));
 			}
 		}
-		if (msgType == "commit" || msgType == "ack"){
+		if (msgType.equals("commit") || msgType.equals("ack")){
 			Element id = newDoc.createElement("TPCOpId");
 			id.setTextContent(this.message);
 			rootElement.appendChild(id);
 		}
 
-		if (msgType == "abort"){
+		if (msgType.equals("abort")){
 			if (this.message != null){
 				Element messageElem = newDoc.createElement("Message");
 				messageElem.setTextContent(this.message);
@@ -387,14 +387,14 @@ public class KVMessage implements Serializable {
 		if (msgType == "ignoreNext"){
 			//dont do anything? 
 		}
-		if (msgType == "ready"){
+		if (msgType.equals("ready")){
 			Element tpId = newDoc.createElement("TPCOpId");
 			tpId.setTextContent(this.tpcOpId);
 			rootElement.appendChild(tpId);
 		}
 
 		
-		if (msgType == "resp"){
+		if (msgType.equals("resp")){
 			//if resp has K&V
 			if (key !=null && value != null){
 				Element keyChild = newDoc.createElement("Key");
@@ -414,7 +414,7 @@ public class KVMessage implements Serializable {
 				throw new KVException (new KVMessage ("resp","XML Error: Received unparseable message" ));
 			}
 		}
-		if (msgType == "getreq" ){
+		if (msgType.equals("getreq")){
 			if (key !=null){
 				Element keyChild = newDoc.createElement("Key");
 				keyChild.setTextContent(key);
@@ -424,7 +424,7 @@ public class KVMessage implements Serializable {
 			}
 		}
 
-		if (msgType == "delreq"){
+		if (msgType.equals("delreq")){
 			if (key !=null){
 				Element keyChild = newDoc.createElement("Key");
 				keyChild.setTextContent(key);

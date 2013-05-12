@@ -249,7 +249,7 @@ public class KVCache implements KeyValueInterface {
 		return Math.abs(key.hashCode()) % numSets;
 	}
 	
-    public String toXML() throws Exception{
+	public String toXML() throws Exception{
 
         XMLOutputFactory factory = XMLOutputFactory.newInstance();
      	XMLStreamWriter writer = factory.createXMLStreamWriter(new FileWriter("cachedump.xml"));
@@ -257,7 +257,7 @@ public class KVCache implements KeyValueInterface {
 		writer.writeStartElement("KVCache");
 		int i = 0;
 		while (i < cacheSet.length) {
-			i++;
+			
 			LinkedList<cacheEntry> listentries = cacheSet[i];
 			
 			writer.writeStartElement("Set");
@@ -279,8 +279,12 @@ public class KVCache implements KeyValueInterface {
 			writer.writeCharacters(curr.value);
 			writer.writeEndElement();
 			writer.writeEndElement();
+			
+			
+
 			}
 			writer.writeEndElement();
+			i++;
 		}
 		
 		writer.writeEndElement();

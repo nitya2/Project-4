@@ -152,17 +152,19 @@ public class TPCLog {
 			return;
 		}
 		
+		reEntry = new ArrayList<KVMessage>();
+		
 		KVMessage next =  null;
 		Iterator<KVMessage> iter = entries.iterator();	//iterate over entries ArrayList to get all KVMessages
 		while(iter.hasNext()){				//send KVMessages to KVServer (rebuild)
 			KVMessage mess = iter.next();
-			if (mess.getMsgType() == "putreq" || mess.getMsgType() == "delreq"){
+			if (mess.getMsgType().equals("putreq") || mess.getMsgType().equals("delreq")){
 				if(!iter.hasNext()){		//if the last message was a put/del, it was interrupted
 					interruptedTpcOperation = mess;		//set interruptedTpcOperation to be last KVMessage
 					return;						
 				}
 				next = iter.next();
-				if (next.getMsgType() == "abort"){	//If aborted, don't add it or mess to reEntry
+				if (next.getMsgType().equals("abort")){	//If aborted, don't add it or mess to reEntry
 					continue;
 				}
 			}
@@ -177,14 +179,16 @@ public class TPCLog {
 		Iterator<KVMessage> reIter = reEntry.iterator();
 		while(reIter.hasNext()){
 			KVMessage reMess = reIter.next();
-			kvServer = new KVServer(100,10);	//initialize kvServer
-			if(reMess.getMsgType() == "getreq"){
+			if(reMess.getMsgType().equals("getreq")){
+				System.out.println("Getting: " + reMess.getKey());
 				kvServer.get(reMess.getKey());
 			}
-			if(reMess.getMsgType() == "putreq"){
+			if(reMess.getMsgType().equals("putreq")){
+				System.out.println("Putting: "  + reMess.getKey() + " " + reMess.getValue());
 				kvServer.put(reMess.getKey(), reMess.getValue());
 			}
-			if(reMess.getMsgType() == "delreq"){
+			if(reMess.getMsgType().equals("delreq")){
+				System.out.println("Deleting: "  + reMess.getKey());
 				kvServer.del(reMess.getKey());
 			}
 		}

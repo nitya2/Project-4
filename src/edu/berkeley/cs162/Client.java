@@ -45,6 +45,8 @@ public class Client {
 			System.out.println("putting (3, 7) (again)");
 			kc.put(three, seven);
 			
+			//System.out.println("deleteing (3)");
+			//kc.del(three);
 			System.out.println("getting key=3");			
 			String value = kc.get(three);					
 			System.out.println("returned: " + value);
