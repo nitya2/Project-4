@@ -76,10 +76,12 @@ public class TPCLog {
 	
 	public void appendAndFlush(KVMessage entry) {
 		// implement me
+		if(entries == null){	//if entries is null, instantiate it
+			entries = new ArrayList<KVMessage>(); 
+		}
 		
 		entries.add(entry);	//append it to the end of the ArrayList entries
 		this.flushToDisk();	//flush the message away using flushToDisk
-
 	}
 
 	/**
