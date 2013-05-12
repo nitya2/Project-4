@@ -53,7 +53,7 @@ public class TPCMasterHandler implements NetworkHandler {
 	
 	// States carried from the first to the second phase of a 2PC operation
 	private KVMessage originalMessage = null;
-	private boolean aborted = true;	
+	private boolean aborted = false;	
 	
 	private boolean overwrite = false;
 	private String placeHolderInCaseOfAbort = null;
@@ -221,6 +221,7 @@ public class TPCMasterHandler implements NetworkHandler {
 			//Get Original value and store in case of abort
 			try {
 				placeHolderInCaseOfAbort = kvServer.get(key);
+				System.out.println("PlaceHolder: " + placeHolderInCaseOfAbort);
 				if(placeHolderInCaseOfAbort != null){
 					overwrite = true;
 				}
@@ -235,7 +236,7 @@ public class TPCMasterHandler implements NetworkHandler {
 				aborted = true;
 				sendAbort(client, msg.getTpcOpId());
 			}
-
+			sendReady(client, msg.getTpcOpId());
 			AutoGrader.agTPCDelFinished(slaveID, msg, key);
 		}
 
@@ -250,7 +251,8 @@ public class TPCMasterHandler implements NetworkHandler {
 			AutoGrader.agSecondPhaseStarted(slaveID, origMsg, origAborted);
 			
 			if(origAborted){
-				sendACK(client, masterResp.getTpcOpId());
+				System.out.println("OrinAborted");
+				return;
 			} else if( masterResp.getMsgType().equals("abort")) {
 				try{
 					if( origMsg.getMsgType().equals("put")){
